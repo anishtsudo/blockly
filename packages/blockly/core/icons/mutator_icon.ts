@@ -22,6 +22,7 @@ import * as dom from '../utils/dom.js';
 import {Rect} from '../utils/rect.js';
 import {Size} from '../utils/size.js';
 import {Svg} from '../utils/svg.js';
+import type {FlyoutItemInfo} from '../utils/toolbox.js';
 import type {WorkspaceSvg} from '../workspace_svg.js';
 import {Icon} from './icon.js';
 import {IconType} from './icon_types.js';
@@ -44,6 +45,19 @@ const WORKSPACE_MARGIN = 16;
 export class MutatorIcon extends Icon implements IHasBubble {
   /** The type string used to identify this icon. */
   static readonly TYPE = IconType.MUTATOR;
+
+  /**
+   * Optional hook used to customize the mutator flyout toolbox before it is
+   * first shown.
+   *
+   * Procedure blocks use this to assign a unique argument name so the default
+   * name is not briefly visible (and so the flyout is sized correctly).
+   *
+   * @internal
+   */
+  static configureFlyoutContents:
+    | ((sourceBlock: BlockSvg, contents: FlyoutItemInfo[]) => FlyoutItemInfo[])
+    | undefined;
 
   /**
    * The weight this icon has relative to other icons. Icons with more positive
@@ -226,12 +240,19 @@ export class MutatorIcon extends Icon implements IHasBubble {
     };
 
     if (this.flyoutBlockTypes.length) {
+      let contents: FlyoutItemInfo[] = this.flyoutBlockTypes.map((type) => ({
+        'kind': 'block',
+        'type': type,
+      }));
+      if (MutatorIcon.configureFlyoutContents) {
+        contents = MutatorIcon.configureFlyoutContents(
+          this.sourceBlock,
+          contents,
+        );
+      }
       options.toolbox = {
         'kind': 'flyoutToolbox',
-        'contents': this.flyoutBlockTypes.map((type) => ({
-          'kind': 'block',
-          'type': type,
-        })),
+        'contents': contents,
       };
     }
 
