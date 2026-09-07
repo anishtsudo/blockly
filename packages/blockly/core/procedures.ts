@@ -39,7 +39,7 @@ import {IProcedureModel} from './interfaces/i_procedure_model.js';
 import {Msg} from './msg.js';
 import {Names} from './names.js';
 import {ObservableProcedureMap} from './observable_procedure_map.js';
-import type {FlyoutItemInfo} from './utils/toolbox.js';
+import type {BlockInfo, FlyoutItemInfo} from './utils/toolbox.js';
 import * as utilsXml from './utils/xml.js';
 import * as Variables from './variables.js';
 import type {Workspace} from './workspace.js';
@@ -299,6 +299,72 @@ export function flyoutCategory(workspace: WorkspaceSvg): FlyoutItemInfo[] {
   populateProcedures(tuple[1], 'procedures_callreturn');
   return blocks;
 }
+
+/**
+ * Returns the parameter names used by the given procedure definition block.
+ *
+ * @param block A block that may be a procedure definition.
+ * @returns The block's parameter names, or null if it is not a procedure
+ *     definition.
+ */
+function getProcedureParameterNames(block: Block): string[] | null {
+  if (isLegacyProcedureDefBlock(block)) {
+    return block.getProcedureDef()[1];
+  }
+  if (isProcedureBlock(block) && block.isProcedureDef()) {
+    return block
+      .getProcedureModel()
+      .getParameters()
+      .map((p) => p.getName());
+  }
+  return null;
+}
+
+/**
+ * Assigns a unique name to the procedure argument block in the mutator flyout
+ * before the flyout is first shown.
+ *
+ * This must happen when the toolbox is created, not in response to the delayed
+ * BUBBLE_OPEN event. Otherwise the default name ("x") is briefly visible and
+ * the flyout may resize after the first paint.
+ *
+ * @param sourceBlock The block that owns the mutator.
+ * @param contents The default mutator flyout contents.
+ * @returns The flyout contents, with a unique argument name if applicable.
+ * @internal
+ */
+export function configureMutatorFlyoutContents(
+  sourceBlock: BlockSvg,
+  contents: FlyoutItemInfo[],
+): FlyoutItemInfo[] {
+  const usedNames = getProcedureParameterNames(sourceBlock);
+  if (!usedNames) {
+    return contents;
+  }
+
+  const uniqueName = Variables.generateUniqueNameFromOptions(
+    DEFAULT_ARG,
+    usedNames,
+  );
+  return contents.map((item) => {
+    const blockInfo = item as BlockInfo;
+    if (
+      blockInfo.kind !== 'block' ||
+      blockInfo.type !== 'procedures_mutatorarg'
+    ) {
+      return item;
+    }
+    return {
+      ...blockInfo,
+      fields: {
+        ...blockInfo.fields,
+        NAME: uniqueName,
+      },
+    };
+  });
+}
+
+MutatorIcon.configureFlyoutContents = configureMutatorFlyoutContents;
 
 /**
  * Updates the procedure mutator's flyout so that the arg block is not a

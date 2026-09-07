@@ -121,6 +121,69 @@ suite('Procedures', function () {
       );
     });
 
+    test('the mutator flyout has a unique name immediately when reopened', async function () {
+      const defBlock = createProcDefBlock(this.workspace);
+      const mutatorIcon = defBlock.getIcon(Blockly.icons.MutatorIcon.TYPE);
+      await mutatorIcon.setBubbleVisible(true);
+      const mutatorWorkspace = mutatorIcon.getWorkspace();
+      const containerBlock = mutatorWorkspace.getTopBlocks()[0];
+      const paramBlock1 = mutatorWorkspace.newBlock('procedures_mutatorarg');
+      paramBlock1.setFieldValue('x', 'NAME');
+      containerBlock
+        .getInput('STACK')
+        .connection.connect(paramBlock1.previousConnection);
+      const paramBlock2 = mutatorWorkspace.newBlock('procedures_mutatorarg');
+      paramBlock2.setFieldValue('y', 'NAME');
+      paramBlock1.nextConnection.connect(paramBlock2.previousConnection);
+      this.clock.runAll();
+      await mutatorIcon.setBubbleVisible(false);
+
+      // Do not run queued events: the unique name must be present on first
+      // paint, not after the delayed BUBBLE_OPEN listener fires.
+      await mutatorIcon.setBubbleVisible(true);
+
+      const flyoutParamName = mutatorIcon
+        .getWorkspace()
+        .getFlyout()
+        .getWorkspace()
+        .getTopBlocks(true)[0]
+        .getFieldValue('NAME');
+      assert.equal(
+        flyoutParamName,
+        'z',
+        'Expected the flyout param to have a unique name immediately',
+      );
+    });
+
+    test('configureMutatorFlyoutContents assigns a unique argument name', function () {
+      const defBlock = Blockly.serialization.blocks.append(
+        {
+          'type': 'procedures_defnoreturn',
+          'fields': {
+            'NAME': 'proc name',
+          },
+          'extraState': {
+            'params': [
+              {'name': 'x', 'id': 'idX'},
+              {'name': 'y', 'id': 'idY'},
+            ],
+          },
+        },
+        this.workspace,
+      );
+
+      const contents = Blockly.Procedures.configureMutatorFlyoutContents(
+        defBlock,
+        [{'kind': 'block', 'type': 'procedures_mutatorarg'}],
+      );
+
+      assert.equal(
+        contents[0].fields.NAME,
+        'z',
+        'Expected the flyout arg name to skip names already used by the procedure',
+      );
+    });
+
     test('adding a parameter to the procedure updates procedure defs', async function () {
       // Create a stack of container, parameter.
       const defBlock = createProcDefBlock(this.workspace);
