@@ -167,10 +167,10 @@ export class Navigator {
     if (!previous || (previous as any) === node.getFocusableTree()) {
       const stackRoot = this.navigateStacks(node, -1);
       if (!stackRoot) return null;
-      previous = this.getLastNodeInStack(stackRoot, node);
+      previous = this.walkToLastNodeInStack(stackRoot, node);
     }
 
-    return this.getLeftmostSibling(previous);
+    return this.getFirstNodeInRow(previous);
   }
 
   /**
@@ -385,23 +385,49 @@ export class Navigator {
   }
 
   /**
-   * Returns the leftmost node in the same row as the given node.
+   * Walks from `start` by repeatedly applying `step` until `stay` rejects the
+   * next candidate, a cycle is detected, or there is no next node.
    *
-   * @param node The node to find the leftmost sibling of.
-   * @returns The leftmost sibling of the given node in the same row.
+   * @param start The node to begin walking from.
+   * @param step Returns the next candidate from the current node.
+   * @param stay If provided, walking stops before a candidate that fails this
+   *     check.
+   * @returns The last accepted node in the walk.
    */
-  private getLeftmostSibling(node: IFocusableNode | null) {
-    if (!node) return null;
-
-    let left = node;
-    let temp;
+  private walkAlong(
+    start: IFocusableNode,
+    step: (node: IFocusableNode) => IFocusableNode | null,
+    stay?: (candidate: IFocusableNode) => boolean,
+  ): IFocusableNode {
+    const visited = new Set<IFocusableNode>();
+    let current = start;
+    let next: IFocusableNode | null;
     while (
-      (temp = this.getPreviousNodeImpl(left, left, NavigationDirection.OUT))
+      (next = step(current)) &&
+      !visited.has(next) &&
+      (stay?.(next) ?? true)
     ) {
-      left = temp;
+      visited.add(current);
+      current = next;
     }
+    return current;
+  }
 
-    return left;
+  /**
+   * Returns the first node in the same row as the given node, i.e. the node
+   * reached by repeatedly navigating out (left in LTR).
+   *
+   * @param node The node to find the first in-row peer of.
+   * @returns The first node in the same row as the given node, or null if none
+   *     was provided.
+   */
+  private getFirstNodeInRow(
+    node: IFocusableNode | null,
+  ): IFocusableNode | null {
+    if (!node) return null;
+    return this.walkAlong(node, (current) =>
+      this.getPreviousNodeImpl(current, current, NavigationDirection.OUT),
+    );
   }
 
   /**
@@ -413,20 +439,16 @@ export class Navigator {
    *     encountered; typically the root node of the next stack.
    * @returns The last node in the given stack.
    */
-  private getLastNodeInStack(
+  private walkToLastNodeInStack(
     stackRoot: IFocusableNode,
-    stopIfFound: IFocusableNode,
+    stopIfFound?: IFocusableNode,
   ) {
-    let target = stackRoot;
-    let temp;
-    while (
-      (temp = this.getNextNodeImpl(target, target, NavigationDirection.NEXT)) &&
-      temp !== stopIfFound
-    ) {
-      target = temp;
-    }
-
-    return target;
+    return this.walkAlong(
+      stackRoot,
+      (current) =>
+        this.getNextNodeImpl(current, current, NavigationDirection.NEXT),
+      (candidate) => candidate !== stopIfFound,
+    );
   }
 
   private getRowId(node: IFocusableNode) {
