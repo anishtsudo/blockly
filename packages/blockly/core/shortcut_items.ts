@@ -1570,9 +1570,10 @@ export function registerJumpLastBlock() {
       );
     },
     callback(workspace) {
+      const topBlocks = workspace.getTopBlocks(true);
+      if (!topBlocks.length) return false;
       const navigator = workspace.getNavigator();
-      const lastTop = navigator.getLastNode();
-      if (!lastTop) return false;
+      const lastTop = topBlocks[topBlocks.length - 1];
       const stackEnd = getLastNodeAlong(
         lastTop,
         (node) => navigator.getNextNode(node),
